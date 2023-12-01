@@ -1,9 +1,9 @@
 import time
-from typing import Annotated
 
 import uvicorn
 
 from fastapi import FastAPI, Depends, Cookie
+from starlette.concurrency import iterate_in_threadpool
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.templating import Jinja2Templates
@@ -29,7 +29,11 @@ origins = [
     "http://26.81.52.203:8000",
     "http://localhost",
     "http://localhost:3000",
-    "http://localhost:5173"
+    "http://localhost:3000/",
+    "http://localhost:3000/login",
+    "http://localhost:3001",
+    "http://localhost:5173",
+    "http://26.81.52.203:3000"
 ]
 
 app.add_middleware(
@@ -38,18 +42,27 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS", "DELETE", "PATCH", "PUT"],
     allow_headers=["Content-Type", "Set-Cookie", "Access-Control-Allow-Headers", "Access-Control-Allow-Origin",
-                   "Authorization"],
+                   "Authorization", "Accept", "cookie"],
 )
 
 
-# @app.middleware("http")
-# async def add_process_time_header(request: Request, call_next):
-#     start_time = time.time()
-#     response = await call_next(request)
-#     process_time = time.time() - start_time
-#     response.headers["X-Process-Time"] = str(process_time)
-#     print(response._info)
-#     return response
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    response_body = [section async for section in response.body_iterator]
+    response.body_iterator = iterate_in_threadpool(iter(response_body))
+    # print(f"response_body={response_body[0].decode()}")
+    print(f"time_of_request: {time.strftime("%H:%M:%S", time.localtime())} \n\n"
+          # f"dir: {dir(request)} \n\n"
+          # f"test: {request.query_params} \n\n"
+          f"req: {request.headers} \n\n "
+          f"res: {response.body_iterator}"
+          f"type {type(response)}"
+          )
+    return response
 
 
 app.include_router(
