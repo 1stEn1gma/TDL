@@ -7,6 +7,7 @@ from src.auth.models import User
 from src.config import JWT_SECRET as SECRET
 
 
+# bearer_transport = CookieTransport("TDL", cookie_max_age=3600, cookie_samesite="none")
 bearer_transport = BearerTransport(tokenUrl="auth/jwt/login")
 
 

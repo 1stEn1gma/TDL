@@ -13,8 +13,8 @@ group = Table(
     "group",
     metadata,
     Column("id", Integer, primary_key=True),
-    Column("user_id", Integer, ForeignKey(user.c.id)),  # user
-    Column("title", String, nullable=True),
+    Column("name", String, nullable=False),
+    Column("descriptions", String, nullable=True),
     Column("labelText", String, nullable=False),
     Column("created_at", TIMESTAMP, default=datetime.utcnow),
 )

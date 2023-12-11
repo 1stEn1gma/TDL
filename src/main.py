@@ -1,9 +1,8 @@
 import time
-from typing import Annotated
 
 import uvicorn
 
-from fastapi import FastAPI, Depends, Cookie
+from fastapi import FastAPI, Depends
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.templating import Jinja2Templates
@@ -12,6 +11,7 @@ from src.auth.schemas import UserRead, UserCreate
 from src.auth.base_config import fastapi_users, auth_backend, current_user
 from src.auth.models import User
 from src.tasks.router import router as router_tasks
+from src.auth.router import router as get_user
 
 app = FastAPI(
     title="TDL"
@@ -43,14 +43,14 @@ app.add_middleware(
 )
 
 
-# @app.middleware("http")
-# async def add_process_time_header(request: Request, call_next):
-#     start_time = time.time()
-#     response = await call_next(request)
-#     process_time = time.time() - start_time
-#     response.headers["X-Process-Time"] = str(process_time)
-#     print(response._info)
-#     return response
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    # print(response.status_code)
+    return response
 
 
 app.include_router(
@@ -66,6 +66,9 @@ app.include_router(
 )
 
 
+app.include_router(get_user)
+
+
 @app.get("/protected-route")
 def protected_route(user: User = Depends(current_user)):
     return f"Hello, {user.username}"
@@ -78,9 +81,6 @@ def unprotected_route():
 
 app.include_router(router_tasks)
 
-
-# if __name__ == "__main__":
-#     uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="26.81.52.203", port=8000, log_level="info")
