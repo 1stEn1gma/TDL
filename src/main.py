@@ -88,8 +88,12 @@ app.include_router(router_tasks)
 
 @app.on_event("startup")
 async def startup_event():
-    redis = aioredis.from_url("redis://localhost", encoding="utf8", decode_responses=True)
-    FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
+    print("Server: Hello world!")
+
+
+@app.on_event("shutdown")
+async def startup_event():
+    print("Server: Hello world!")
 
 
 if __name__ == "__main__":

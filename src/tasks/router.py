@@ -1,5 +1,8 @@
+import json
+import time
+
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi_cache.decorator import cache
+
 from sqlalchemy import select, insert, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +11,11 @@ from src.auth.models import User
 from src.database import get_async_session
 from src.tasks.models import tasks
 from src.tasks.schemas import TaskCreate
+from redis import asyncio as aioredis
+
+from src.tasks.usefull_moduls import datetime_serializer, timing_decorator
+
+redis = aioredis.from_url("redis://localhost", encoding="utf8", decode_responses=True)
 
 router = APIRouter(
     prefix="/tasks",
@@ -15,66 +23,58 @@ router = APIRouter(
 )
 
 
-# @router.get("/")
-# async def get_tasks(user: User = Depends(current_user), session: AsyncSession = Depends(get_async_session)):
-#     try:
-#         query = select(tasks).where(tasks.c.user_id == user.id)
-#         result = await session.execute(query)
-#         return {
-#             "status": "200",
-#             "data": result.mappings().all(),
-#             "details": None
-#         }
-#     except Exception:
-#         # Передать ошибку разработчикам
-#         raise HTTPException(status_code=500, detail={
-#             "status": "error",
-#             "data": None,
-#             "details": None
-#         })
-
-
 @router.get("/")
 async def get_tasks(user: User = Depends(current_user), tasks_title: str = "all", session: AsyncSession = Depends(get_async_session)):
     tasks_title = tasks_title.lower()
     print(tasks_title)
-    # try:
+    try:
+        async def get_all_task(id):
 
-    @cache(expire=30)
-    async def get_all_task(id):
-        query = (select(tasks).
-                 where(tasks.c.user_id == id))
-        result = await session.execute(query)
-        my_tasks = result.mappings().all()
-        return my_tasks
+            key = str(id) + "get_all_task"
+            cached_result = await redis.get(key)
+            if cached_result:
+                return json.loads(cached_result)
 
-    my_tasks = await get_all_task(user.id)
-    test = [dict(row) for row in my_tasks]
-    res = [d for d in test if d["title"] == tasks_title] if tasks_title != "all" else test
-    # print(type(test[0]))
-    return {
-        "status": "200",
-        "data": res,
-        "details": None
-    }
-    # except Exception:
-    #     # Передать ошибку разработчикам
-    #     raise HTTPException(status_code=500, detail={
-    #         "status": "error",
-    #         "data": None,
-    #         "details": None
-    #     })
+            query = (select(tasks).
+                     where(tasks.c.user_id == id))
+            result = await session.execute(query)
+            my_tasks = result.mappings().all()
+
+            list_of_dicts = [dict(row) for row in my_tasks]
+            serialized_data = json.dumps(list_of_dicts, default=datetime_serializer)
+
+            await redis.setex(key, 300, serialized_data)
+            return list_of_dicts
+
+        test = await get_all_task(user.id)
+        res = [d for d in test if d["title"] == tasks_title] if tasks_title != "all" else test
+        return {
+            "status": "200",
+            "data": res,
+            "details": None
+        }
+    except Exception:
+        # Передать ошибку разработчикам
+        raise HTTPException(status_code=500, detail={
+            "status": "error",
+            "data": None,
+            "details": None
+        })
 
 
 @router.post("/")
 async def add_task(new_operation: TaskCreate, user: User = Depends(current_user), session: AsyncSession = Depends(get_async_session)):
     try:
+
         stmt = (insert(tasks).
                 values(**new_operation.model_dump(), user_id=user.id))
         await session.execute(stmt)
         await session.commit()
         query = select(tasks).where(tasks.c.user_id == user.id)
         result = await session.execute(query)
+
+        await redis.delete(str(user.id) + "_get_all_task")
+
         return {
                     "status": "200",
                     "data": result.mappings().all(),
@@ -99,6 +99,9 @@ async def edit_task(task_id: int, new_operation: TaskCreate, user: User = Depend
         await session.commit()
         query = select(tasks).where((tasks.c.user_id == user.id) & (tasks.c.id == task_id))
         result = await session.execute(query)
+
+        await redis.delete(str(user.id) + "_get_all_task")
+
         return {
             "status": "200",
             "data": result.mappings().all(),
@@ -123,6 +126,9 @@ async def delete_task(task_id: int, user: User = Depends(current_user), session:
         query2 = (select(tasks).
                   where(tasks.c.user_id == user.id))
         result = await session.execute(query2)
+
+        await redis.delete(str(user.id) + "_get_all_task")
+
         return {
             "status": "200",
             "data": result.mappings().all(),
@@ -173,6 +179,9 @@ async def add_to_trash_task(task_id: int, user: User = Depends(current_user), se
         query2 = (select(tasks).
                   where(tasks.c.user_id == user.id))
         result = await session.execute(query2)
+
+        await redis.delete(str(user.id) + "_get_all_task")
+
         return {
             "status": "200",
             "data": result.mappings().all(),

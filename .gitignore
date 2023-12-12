@@ -1,0 +1,10 @@
+venv/
+venvv/
+.idea/
+.env
+127.0.0.1.crt
+127.0.0.1.key
+26.81.52.203.pem
+26.81.52.203-key.pem
+config.json
+config1.json
