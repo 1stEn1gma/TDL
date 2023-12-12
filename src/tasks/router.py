@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi_cache.decorator import cache
 from sqlalchemy import select, insert, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,26 +38,32 @@ router = APIRouter(
 async def get_tasks(user: User = Depends(current_user), tasks_title: str = "all", session: AsyncSession = Depends(get_async_session)):
     tasks_title = tasks_title.lower()
     print(tasks_title)
-    try:
-        if tasks_title == "all":
-            query = (select(tasks).
-                     where(tasks.c.user_id == user.id))
-        else:
-            query = (select(tasks).
-                     where((tasks.c.user_id == user.id) & (tasks.c.title == tasks_title)))
+    # try:
+
+    @cache(expire=30)
+    async def get_all_task(id):
+        query = (select(tasks).
+                 where(tasks.c.user_id == id))
         result = await session.execute(query)
-        return {
-            "status": "200",
-            "data": result.mappings().all(),
-            "details": None
-        }
-    except Exception:
-        # Передать ошибку разработчикам
-        raise HTTPException(status_code=500, detail={
-            "status": "error",
-            "data": None,
-            "details": None
-        })
+        my_tasks = result.mappings().all()
+        return my_tasks
+
+    my_tasks = await get_all_task(user.id)
+    test = [dict(row) for row in my_tasks]
+    res = [d for d in test if d["title"] == tasks_title] if tasks_title != "all" else test
+    # print(type(test[0]))
+    return {
+        "status": "200",
+        "data": res,
+        "details": None
+    }
+    # except Exception:
+    #     # Передать ошибку разработчикам
+    #     raise HTTPException(status_code=500, detail={
+    #         "status": "error",
+    #         "data": None,
+    #         "details": None
+    #     })
 
 
 @router.post("/")
