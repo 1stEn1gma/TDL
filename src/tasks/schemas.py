@@ -14,14 +14,14 @@ m_list = ["important", "notes", "links", "completed", "deleted"]
 
 
 class TaskBase(BaseModel):
-    title: str  # "important", "notes", "links", "completed", "deleted"
+    title: str  # "important", "notes", "links", "completed", "deleted", "expired"
     labelText: str
     do_before: datetime.date
     on_this_day: bool
 
     @field_validator('title')
     def validate_field(cls, value):
-        valid_values = ["important", "notes", "links", "completed", "deleted"]
+        valid_values = ["important", "notes", "links", "completed", "deleted", "expired"]
         if value not in valid_values:
             raise ValueError(f"Invalid value for field. Allowed values are: {valid_values}")
         return value
