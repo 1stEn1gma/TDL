@@ -6,10 +6,9 @@ from fastapi_users import schemas
 
 class UserRead(schemas.BaseUser[int]):
     id: int
-    # email: str
     email: Annotated[str, Query(min_length=5,
                                 pattern="[\w\.-]+@[\w\.-]+(\.[\w]+)+")]
-    username: str
+    username: Annotated[str, Query(max_length=15)]
     points: float
     role_id: int
     is_active: bool = True
@@ -21,7 +20,7 @@ class UserRead(schemas.BaseUser[int]):
 
 
 class UserCreate(schemas.BaseUserCreate):
-    username: str
+    username: Annotated[str, Query(max_length=15)]
     email: Annotated[str, Query(min_length=5,
                                 pattern="[\w\.-]+@[\w\.-]+(\.[\w]+)+")]
     password: str

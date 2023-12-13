@@ -93,7 +93,7 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def startup_event():
-    print("Server: Hello world!")
+    print("Server: Goodbye world!")
 
 
 if __name__ == "__main__":
