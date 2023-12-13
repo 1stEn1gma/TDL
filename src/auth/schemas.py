@@ -10,6 +10,7 @@ class UserRead(schemas.BaseUser[int]):
     email: Annotated[str, Query(min_length=5,
                                 pattern="[\w\.-]+@[\w\.-]+(\.[\w]+)+")]
     username: str
+    points: float
     role_id: int
     is_active: bool = True
     is_superuser: bool = False

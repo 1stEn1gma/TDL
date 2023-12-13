@@ -1,3 +1,5 @@
+import datetime
+
 from pydantic import BaseModel, field_validator
 
 m_list = ["important", "notes", "links", "completed", "deleted"]
@@ -14,6 +16,8 @@ m_list = ["important", "notes", "links", "completed", "deleted"]
 class TaskBase(BaseModel):
     title: str  # "important", "notes", "links", "completed", "deleted"
     labelText: str
+    do_before: datetime.date
+    on_this_day: bool
 
     @field_validator('title')
     def validate_field(cls, value):

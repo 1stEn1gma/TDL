@@ -1,9 +1,9 @@
 import time
-from datetime import datetime
+from datetime import date
 
 
 def datetime_serializer(obj):
-    if isinstance(obj, datetime):
+    if isinstance(obj, date):
         return obj.isoformat()
     raise TypeError("Type not serializable")
 

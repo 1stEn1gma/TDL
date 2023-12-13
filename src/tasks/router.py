@@ -1,3 +1,4 @@
+import datetime
 import json
 import time
 
@@ -27,45 +28,59 @@ router = APIRouter(
 async def get_tasks(user: User = Depends(current_user), tasks_title: str = "all", session: AsyncSession = Depends(get_async_session)):
     tasks_title = tasks_title.lower()
     print(tasks_title)
-    try:
-        async def get_all_task(id):
+    # try:
+    async def get_all_task(id):
 
-            key = str(id) + "get_all_task"
-            cached_result = await redis.get(key)
-            if cached_result:
-                return json.loads(cached_result)
+        key = str(id) + "get_all_task"
+        cached_result = await redis.get(key)
+        if cached_result:
+            return json.loads(cached_result)
 
-            query = (select(tasks).
-                     where(tasks.c.user_id == id))
-            result = await session.execute(query)
-            my_tasks = result.mappings().all()
+        query = (select(tasks).
+                 where(tasks.c.user_id == id))
+        result = await session.execute(query)
+        my_tasks = result.mappings().all()
+        print("wdw")
+        list_of_dicts = [dict(row) for row in my_tasks]
+        print(type(list_of_dicts[0]['do_before'].date()))
+        for i in list_of_dicts:
+            i['do_before'] = i['do_before'].date()
+        serialized_data = json.dumps(list_of_dicts, default=datetime_serializer)
 
-            list_of_dicts = [dict(row) for row in my_tasks]
-            serialized_data = json.dumps(list_of_dicts, default=datetime_serializer)
+        await redis.setex(key, 30, serialized_data)
+        return list_of_dicts
 
-            await redis.setex(key, 300, serialized_data)
-            return list_of_dicts
+    all_tasks = await get_all_task(user.id)
+    res = [d for d in all_tasks if d["title"] == tasks_title] if tasks_title != "all" else all_tasks
+    rel = []
 
-        test = await get_all_task(user.id)
-        res = [d for d in test if d["title"] == tasks_title] if tasks_title != "all" else test
-        return {
-            "status": "200",
-            "data": res,
-            "details": None
-        }
-    except Exception:
-        # Передать ошибку разработчикам
-        raise HTTPException(status_code=500, detail={
-            "status": "error",
-            "data": None,
-            "details": None
-        })
+    tod = datetime.date.today()
+
+    print(type(all_tasks[0]['do_before']))
+    for i in all_tasks:
+        if (tod < i['do_before'] and not i['on_this_day']) or (tod == i['do_before'] and i['on_this_day']):
+            rel.append(i)
+    return {
+        "status": "200",
+        "data":
+            {
+                "relevant": rel,
+                "current": res
+            },
+        "details": None
+    }
+    # except Exception:
+    #     # Передать ошибку разработчикам
+    #     raise HTTPException(status_code=500, detail={
+    #         "status": "error",
+    #         "data": None,
+    #         "details": None
+    #     })
 
 
 @router.post("/")
 async def add_task(new_operation: TaskCreate, user: User = Depends(current_user), session: AsyncSession = Depends(get_async_session)):
     try:
-
         stmt = (insert(tasks).
                 values(**new_operation.model_dump(), user_id=user.id))
         await session.execute(stmt)
@@ -194,3 +209,4 @@ async def add_to_trash_task(task_id: int, user: User = Depends(current_user), se
             "data": None,
             "details": None
         })
+
