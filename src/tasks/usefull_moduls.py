@@ -89,7 +89,9 @@ def choose_relevant_tasks_from_all(all_tasks):
     for task in all_tasks:
         do_before = tod < task['do_before'] and not task['on_this_day']
         do_in_this_day = tod == task['do_before'] and task['on_this_day']
-        if do_before or do_in_this_day:
+        deleted = task["title"] == "deleted"
+        expired = task["title"] == "expired"
+        if (do_before or do_in_this_day) and not (deleted or expired):
             rel.append(task)
     rel.sort(key=lambda x: x['created_at'])
     return rel

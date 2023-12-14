@@ -3,8 +3,6 @@ import time
 import uvicorn
 
 from fastapi import FastAPI, Depends
-from fastapi_cache import FastAPICache
-from fastapi_cache.backends.redis import RedisBackend
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.templating import Jinja2Templates
@@ -14,8 +12,6 @@ from src.auth.base_config import fastapi_users, auth_backend, current_user
 from src.auth.models import User
 from src.tasks.router import router as router_tasks
 from src.auth.router import router as get_user
-
-from redis import asyncio as aioredis
 
 app = FastAPI(
     title="TDL"

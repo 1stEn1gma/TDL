@@ -1,8 +1,6 @@
-import datetime
-
 from fastapi import APIRouter, Depends, HTTPException
 
-from sqlalchemy import select, insert, delete, update
+from sqlalchemy import insert, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.base_config import current_user
@@ -30,41 +28,9 @@ async def get_tasks(user: User = Depends(current_user),
                     session: AsyncSession = Depends(get_async_session)):
     tasks_title = tasks_title.lower()
     print(f"get by:{tasks_title}")
-    # try:
-    all_tasks = await get_all_task(user, session)
-    res = choose_needed_tasks_from_all(all_tasks, tasks_title)
-    rel = choose_relevant_tasks_from_all(all_tasks)
-
-    return {
-        "status": "200",
-        "data":
-            {
-                "relevant": rel,
-                "current": res
-            },
-        "details": None
-    }
-    # except Exception:
-    #     # Передать ошибку разработчикам
-    #     raise HTTPException(status_code=500, detail={
-    #         "status": "error",
-    #         "data": None,
-    #         "details": None
-    #     })
-
-
-@router.post("/", response_model=ResponseForGetTasks)
-async def add_task(new_operation: TaskCreate,
-                   user: User = Depends(current_user),
-                   session: AsyncSession = Depends(get_async_session)):
     try:
-        stmt = (insert(tasks).
-                values(**new_operation.model_dump(), user_id=user.id))
-        await session.execute(stmt)
-        await session.commit()
-
-        await r.delete(str(user.id) + "_get_all_task")
         all_tasks = await get_all_task(user, session)
+        res = choose_needed_tasks_from_all(all_tasks, tasks_title)
         rel = choose_relevant_tasks_from_all(all_tasks)
 
         return {
@@ -72,7 +38,42 @@ async def add_task(new_operation: TaskCreate,
             "data":
                 {
                     "relevant": rel,
-                    "current": all_tasks
+                    "current": res
+                },
+            "details": None
+        }
+    except Exception:
+        # Передать ошибку разработчикам
+        raise HTTPException(status_code=500, detail={
+            "status": "error",
+            "data": None,
+            "details": None
+        })
+
+
+@router.post("/", response_model=ResponseForGetTasks)
+async def add_task(new_operation: TaskCreate,
+                   tasks_title: str = "all",
+                   user: User = Depends(current_user),
+                   session: AsyncSession = Depends(get_async_session)):
+    try:
+        tasks_title = tasks_title.lower()
+        stmt = (insert(tasks).
+                values(**new_operation.model_dump(), user_id=user.id))
+        await session.execute(stmt)
+        await session.commit()
+
+        await r.delete(str(user.id) + "_get_all_task")
+        all_tasks = await get_all_task(user, session)
+        res = choose_needed_tasks_from_all(all_tasks, tasks_title)
+        rel = choose_relevant_tasks_from_all(all_tasks)
+
+        return {
+            "status": "200",
+            "data":
+                {
+                    "relevant": rel,
+                    "current": res
                 },
             "details": None
         }
@@ -87,18 +88,21 @@ async def add_task(new_operation: TaskCreate,
 
 @router.post("/{task_id}/edit", response_model=ResponseForGetTasks)
 async def edit_task(task_id: int, new_operation: TaskCreate,
+                    tasks_title: str = "all",
                     user: User = Depends(current_user),
                     session: AsyncSession = Depends(get_async_session)
                     ):
     try:
-        query = update(tasks).\
-                where((tasks.c.user_id == user.id) & (tasks.c.id == task_id)).\
-                values(**new_operation.model_dump(), user_id=user.id)
+        tasks_title = tasks_title.lower()
+        query = (update(tasks).
+                 where((tasks.c.user_id == user.id) & (tasks.c.id == task_id)).
+                 values(**new_operation.model_dump(), user_id=user.id))
         await session.execute(query)
         await session.commit()
 
         await r.delete(str(user.id) + "_get_all_task")
         all_tasks = await get_all_task(user, session)
+        res = choose_needed_tasks_from_all(all_tasks, tasks_title)
         rel = choose_relevant_tasks_from_all(all_tasks)
 
         return {
@@ -106,7 +110,7 @@ async def edit_task(task_id: int, new_operation: TaskCreate,
             "data":
                 {
                     "relevant": rel,
-                    "current": all_tasks
+                    "current": res
                 },
             "details": None
         }
@@ -121,9 +125,11 @@ async def edit_task(task_id: int, new_operation: TaskCreate,
 
 @router.post("/{task_id}/delete", response_model=ResponseForGetTasks)
 async def delete_task(task_id: int,
+                      tasks_title: str = "all",
                       user: User = Depends(current_user),
                       session: AsyncSession = Depends(get_async_session)):
     try:
+        tasks_title = tasks_title.lower()
         stmt = (delete(tasks).
                 where((tasks.c.id == task_id) & (tasks.c.user_id == user.id)))
         await session.execute(stmt)
@@ -131,6 +137,7 @@ async def delete_task(task_id: int,
 
         await r.delete(str(user.id) + "_get_all_task")
         all_tasks = await get_all_task(user, session)
+        res = choose_needed_tasks_from_all(all_tasks, tasks_title)
         rel = choose_relevant_tasks_from_all(all_tasks)
 
         return {
@@ -138,7 +145,7 @@ async def delete_task(task_id: int,
             "data":
                 {
                     "relevant": rel,
-                    "current": all_tasks
+                    "current": res
                 },
             "details": None
         }
@@ -153,12 +160,18 @@ async def delete_task(task_id: int,
 
 @router.post("/{task_id}/complete", response_model=ResponseForGetTasks)
 async def complete_task(task_id: int,
+                        tasks_title: str = "all",
                         user: User = Depends(current_user),
                         session: AsyncSession = Depends(get_async_session)):
     try:
+        tasks_title = tasks_title.lower()
         task = await get_task_by_id(user.id, task_id, session)
         if task["title"] == "expired":
-            raise ExpiredError("Task expired")
+            raise HTTPException(status_code=399, detail={"status": "399",
+                                                         "data": "Expired",
+                                                         "details": None
+                                                         }
+                                )
         stmt = (update(tasks).
                 where((tasks.c.user_id == user.id) & (tasks.c.id == task_id)).
                 values(title="completed"))
@@ -170,6 +183,7 @@ async def complete_task(task_id: int,
 
         await r.delete(str(user.id) + "_get_all_task")
         all_tasks = await get_all_task(user, session)
+        res = choose_needed_tasks_from_all(all_tasks, tasks_title)
         rel = choose_relevant_tasks_from_all(all_tasks)
 
         return {
@@ -177,7 +191,7 @@ async def complete_task(task_id: int,
             "data":
                 {
                     "relevant": rel,
-                    "current": all_tasks
+                    "current": res
                 },
             "details": None
         }
@@ -192,17 +206,20 @@ async def complete_task(task_id: int,
 
 @router.post("/{task_id}/add_to_trash", response_model=ResponseForGetTasks)
 async def add_to_trash_task(task_id: int,
+                            tasks_title: str = "all",
                             user: User = Depends(current_user),
                             session: AsyncSession = Depends(get_async_session)):
     try:
-        stmt = update(tasks). \
-                where((tasks.c.user_id == user.id) & (tasks.c.id == task_id)). \
-                values(title="deleted")
+        tasks_title = tasks_title.lower()
+        stmt = (update(tasks).
+                where((tasks.c.user_id == user.id) & (tasks.c.id == task_id)).
+                values(title="deleted"))
         await session.execute(stmt)
         await session.commit()
 
         await r.delete(str(user.id) + "_get_all_task")
         all_tasks = await get_all_task(user, session)
+        res = choose_needed_tasks_from_all(all_tasks, tasks_title)
         rel = choose_relevant_tasks_from_all(all_tasks)
 
         return {
@@ -210,7 +227,7 @@ async def add_to_trash_task(task_id: int,
             "data":
                 {
                     "relevant": rel,
-                    "current": all_tasks
+                    "current": res
                 },
             "details": None
         }

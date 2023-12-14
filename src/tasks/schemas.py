@@ -1,8 +1,8 @@
 import datetime
-from typing import Annotated, Union, List, Optional
+from typing import Annotated, List, Optional
 
 from fastapi import Query
-from pydantic import BaseModel, field_validator, validator
+from pydantic import BaseModel, field_validator
 
 m_list = ["important", "notes", "links", "completed", "deleted"]
 
