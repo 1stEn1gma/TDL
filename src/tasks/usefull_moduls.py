@@ -4,6 +4,7 @@ from datetime import datetime, date
 from redis import asyncio as aioredis
 from sqlalchemy import select, update
 
+from src.auth.models import user
 from src.tasks.models import tasks
 
 r = aioredis.from_url("redis://localhost", encoding="utf8", decode_responses=True)
@@ -26,9 +27,9 @@ def timing_decorator(func):
     return wrapper
 
 
-async def get_all_task(id, session):
+async def get_all_task(user, session):
     # caching part
-    key = str(id) + "_get_all_task"
+    key = str(user.id) + "_get_all_task"
     cached_result = await r.get(key)
     if cached_result:
         ret = json.loads(cached_result)
@@ -39,7 +40,7 @@ async def get_all_task(id, session):
 
     # func
     query = (select(tasks).
-             where(tasks.c.user_id == id))
+             where(tasks.c.user_id == user.id))
     result = await session.execute(query)
     my_tasks = result.mappings().all()
 
@@ -53,10 +54,18 @@ async def get_all_task(id, session):
 
     for task in list_of_dicts:
         if today > task['do_before'] and not task['title'] == "expired":
-            await set_expired_task(task, id, session)
+            await set_expired_task(task, user, session)
 
     await r.setex(key, 300, serialized_data)
     return list_of_dicts
+
+
+async def get_task_by_id(user_id, task_id, session):
+    query = (select(tasks).
+             where((tasks.c.user_id == user_id) & (tasks.c.id == task_id)))
+    result = await session.execute(query)
+    my_tasks = result.mappings().all()
+    return my_tasks[0]
 
 
 def choose_needed_tasks_from_all(all_tasks, tasks_title):
@@ -86,12 +95,73 @@ def choose_relevant_tasks_from_all(all_tasks):
     return rel
 
 
-async def set_expired_task(task, user_id, session):
+async def set_expired_task(task, c_user, session):
     task['title'] = "expired"
     query = update(tasks). \
         where((tasks.c.user_id == task['user_id']) & (tasks.c.id == task['id'])). \
-        values(**task)
+        values(title="expired")
     await session.execute(query)
     await session.commit()
 
-    await r.delete(str(user_id) + "_get_all_task")
+    if c_user.points-5 > 0:
+        stmt = update(user). \
+            where(user.c.id == c_user.id). \
+            values(points=c_user.points-5)
+    else:
+        stmt = update(user). \
+            where(user.c.id == c_user.id). \
+            values(points=0)
+    await session.execute(stmt)
+    await session.commit()
+
+    await r.delete(str(c_user.id) + "_get_all_task")
+
+
+async def add_points(c_user, task, session):
+    key = str(c_user.id) + "_points"
+    cashed_points = await r.get(key)
+    if cashed_points:
+        if int(cashed_points) < 100:
+            if task["on_this_day"]:
+                plus = 10
+                temp = int(cashed_points) + plus
+                if temp > 100:
+                    temp = 100
+                await r.setex(key, 86400, temp)
+                await change_points_in_db(c_user, plus, session)
+                return
+            else:
+                a = (task["do_before"].date() - task["created_at"].date()).days
+                b = (date.today() - task["created_at"].date()).days
+                plus = 5 + 5 * (1 - b / a)
+
+                temp = int(cashed_points) + plus
+                if temp > 100:
+                    temp = 100
+                await r.setex(key, 86400, temp)
+                await change_points_in_db(c_user, plus, session)
+                return
+    if task["on_this_day"]:
+        plus = 10
+        temp = plus
+        await r.setex(key, 86400, temp)
+        await change_points_in_db(c_user, plus, session)
+        return
+    else:
+        a = (task["do_before"].date() - task["created_at"].date()).days
+        b = (date.today() - task["created_at"].date()).days
+        plus = 5 + 5 * (1 - b / a)
+
+        temp = plus
+        await r.setex(key, 86400, temp)
+        await change_points_in_db(c_user, plus, session)
+        return
+
+
+async def change_points_in_db(c_user, plus, session):
+    points = c_user.points + plus
+    stmt = update(user). \
+        where(user.c.id == c_user.id). \
+        values(points=points)
+    await session.execute(stmt)
+    await session.commit()
