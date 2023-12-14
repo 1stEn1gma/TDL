@@ -13,11 +13,11 @@ router = APIRouter(
 
 
 @router.get("/get-current-user")
-async def get_user(user: User = Depends(current_user)):
+async def get_user(c_user: User = Depends(current_user)):
     try:
         return {
             "status": "200",
-            "data": user,
+            "data": c_user,
             "details": None
         }
     except Exception:
@@ -52,7 +52,7 @@ async def get_users(session: AsyncSession = Depends(get_async_session)):
 
 @router.get("/get-rating-user")
 async def get_rate(c_user: User = Depends(current_user), session: AsyncSession = Depends(get_async_session)):
-    # try:
+    try:
         list_of_users = (await get_users(session))["data"]
         position = next(index for index, item in enumerate(list_of_users) if item['id'] == c_user.id)
         return {
@@ -60,10 +60,10 @@ async def get_rate(c_user: User = Depends(current_user), session: AsyncSession =
             "data": position+1,
             "details": None
         }
-    # except Exception:
-    #     # Передать ошибку разработчикам
-    #     raise HTTPException(status_code=500, detail={
-    #         "status": "error",
-    #         "data": None,
-    #         "details": None
-    #     })
+    except Exception:
+        # Передать ошибку разработчикам
+        raise HTTPException(status_code=500, detail={
+            "status": "error",
+            "data": None,
+            "details": None
+        })

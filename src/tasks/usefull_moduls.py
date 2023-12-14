@@ -27,9 +27,9 @@ def timing_decorator(func):
     return wrapper
 
 
-async def get_all_task(user, session):
+async def get_all_task(c_user, session):
     # caching part
-    key = str(user.id) + "_get_all_task"
+    key = str(c_user.id) + "_get_all_task"
     cached_result = await r.get(key)
     if cached_result:
         ret = json.loads(cached_result)
@@ -40,7 +40,7 @@ async def get_all_task(user, session):
 
     # func
     query = (select(tasks).
-             where(tasks.c.user_id == user.id))
+             where(tasks.c.user_id == c_user.id))
     result = await session.execute(query)
     my_tasks = result.mappings().all()
 
@@ -54,7 +54,7 @@ async def get_all_task(user, session):
 
     for task in list_of_dicts:
         if today > task['do_before'] and not task['title'] == "expired":
-            await set_expired_task(task, user, session)
+            await set_expired_task(task, c_user, session)
 
     await r.setex(key, 300, serialized_data)
     return list_of_dicts
