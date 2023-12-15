@@ -123,10 +123,10 @@ async def add_points(c_user, task, session):
     key = str(c_user.id) + "_points"
     cashed_points = await r.get(key)
     if cashed_points:
-        if int(cashed_points) < 100:
+        if float(cashed_points) < 100:
             if task["on_this_day"]:
                 plus = 10
-                temp = int(cashed_points) + plus
+                temp = float(cashed_points) + plus
                 if temp > 100:
                     temp = 100
                 await r.setex(key, 86400, temp)
@@ -137,7 +137,7 @@ async def add_points(c_user, task, session):
                 b = (date.today() - task["created_at"].date()).days
                 plus = 5 + 5 * (1 - b / a)
 
-                temp = int(cashed_points) + plus
+                temp = float(cashed_points) + plus
                 if temp > 100:
                     temp = 100
                 await r.setex(key, 86400, temp)
